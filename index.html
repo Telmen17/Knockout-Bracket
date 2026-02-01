@@ -1,0 +1,1171 @@
+<meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Soccer Knockout Bracket Note Tool</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --surface2: #21262d;
+      --border: #30363d;
+      --text: #e6edf3;
+      --text-muted: #8b949e;
+      --accent: #58a6ff;
+      --accent-hover: #79b8ff;
+      --success: #3fb950;
+      --warning: #d29922;
+      --danger: #f85149;
+      --radius: 8px;
+      --shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+    body.embed-mode { min-height: 0; }
+
+    /* Top bar */
+    .top-bar {
+      display: flex; align-items: center; gap: 12px; padding: 10px 20px;
+      background: var(--surface); border-bottom: 1px solid var(--border); flex-wrap: wrap;
+    }
+    .top-bar h1 { font-size: 1.2rem; font-weight: 600; margin-right: auto; }
+    .top-bar button {
+      padding: 6px 14px; border-radius: var(--radius); border: 1px solid var(--border);
+      background: var(--surface2); color: var(--text); cursor: pointer;
+      font-size: 0.9rem; transition: all 0.15s ease;
+    }
+    .top-bar button:hover { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+    .top-bar button.danger:hover { background: var(--danger); border-color: var(--danger); }
+
+    /* Main layout */
+    .main { display: flex; min-height: calc(100vh - 50px); }
+    .sidebar { width: 280px; flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--border); transition: width 0.2s; overflow: hidden; }
+    .main.broadcast .sidebar { width: 0; min-width: 0; padding: 0; overflow: hidden; }
+
+    /* Collapsible panel */
+    .panel { border-bottom: 1px solid var(--border); }
+    .panel-header {
+      display: flex; align-items: center; justify-content: space-between; padding: 12px 16px;
+      cursor: pointer; background: var(--surface2); font-weight: 600; user-select: none;
+    }
+    .panel-header:hover { background: var(--surface2); }
+    .panel-header .chevron { transition: transform 0.2s; opacity: 0.7; }
+    .panel.collapsed .chevron { transform: rotate(-90deg); }
+    .panel-content { padding: 12px 16px; max-height: 400px; overflow-y: auto; }
+    .panel.collapsed .panel-content { display: none; }
+
+    /* Form elements */
+    .form-group { margin-bottom: 12px; }
+    .form-group label { display: block; font-size: 0.85rem; margin-bottom: 4px; color: var(--text-muted); }
+    .form-group input[type="number"], .form-group select {
+      width: 100%; padding: 8px 10px; border-radius: var(--radius); border: 1px solid var(--border);
+      background: var(--bg); color: var(--text); font-size: 0.95rem;
+    }
+    .form-group input:focus, .form-group select:focus { outline: none; border-color: var(--accent); }
+
+    .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+    .btn { padding: 8px 14px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--surface2); color: var(--text); cursor: pointer; font-size: 0.9rem; transition: all 0.15s; }
+    .btn:hover { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+    .btn.primary { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+    .btn.primary:hover { background: var(--accent-hover); }
+
+    /* Team list */
+    .team-list { margin: 10px 0; }
+    .team-item {
+      display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border);
+      cursor: grab; user-select: none; transition: background 0.15s;
+    }
+    .team-item:hover { background: var(--surface2); }
+    .team-item.dragging { opacity: 0.5; }
+    .team-item input { flex: 1; padding: 6px 8px; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-size: 0.9rem; }
+    .team-item input:focus { outline: none; border-color: var(--accent); }
+    .team-item .handle { color: var(--text-muted); font-size: 0.8rem; }
+
+    /* Seeding slots */
+    .seeding-slots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 10px; }
+    .seed-slot {
+      min-height: 36px; padding: 6px 8px; border-radius: var(--radius); border: 2px dashed var(--border);
+      background: var(--bg); font-size: 0.8rem; transition: all 0.15s;
+    }
+    .seed-slot.drag-over { border-color: var(--accent); background: rgba(88, 166, 255, 0.1); }
+    .seed-slot .slot-num { font-size: 0.7rem; color: var(--text-muted); margin-bottom: 2px; }
+    .seed-slot .team-name { font-weight: 500; }
+    .seed-slot .bye-badge { font-size: 0.7rem; color: var(--text-muted); background: var(--surface2); padding: 2px 6px; border-radius: 4px; display: inline-block; }
+    .seed-slot.filled { border-style: solid; cursor: grab; }
+    .seed-slot.filled:hover { border-color: var(--accent); }
+
+    /* Rules toggles */
+    .toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); }
+    .toggle-row:last-child { border-bottom: none; }
+    .toggle-row.disabled { opacity: 0.5; pointer-events: none; }
+    .toggle { width: 44px; height: 24px; background: var(--surface2); border-radius: 12px; cursor: pointer; position: relative; transition: background 0.2s; }
+    .toggle.on { background: var(--accent); }
+    .toggle::after { content: ''; position: absolute; width: 18px; height: 18px; background: white; border-radius: 50%; top: 3px; left: 3px; transition: transform 0.2s; }
+    .toggle.on::after { transform: translateX(20px); }
+
+    /* Bracket area */
+    .bracket-area { flex: 1; overflow-x: auto; padding: 20px; }
+    .bracket-area.broadcast { padding: 30px; }
+    .bracket-rounds { display: flex; gap: 24px; min-width: max-content; }
+    .round-column { flex-shrink: 0; }
+    .round-title { font-size: 0.9rem; font-weight: 600; color: var(--text-muted); margin-bottom: 12px; text-align: center; }
+    .bracket-area.broadcast .round-title { font-size: 1.1rem; margin-bottom: 16px; }
+    .round-matches { display: flex; flex-direction: column; gap: 16px; }
+    .bracket-area.broadcast .round-matches { gap: 24px; }
+
+    /* Match card */
+    .match-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 12px; min-width: 200px; box-shadow: var(--shadow); transition: all 0.2s;
+    }
+    .bracket-area.broadcast .match-card { min-width: 260px; padding: 18px; font-size: 1.1rem; }
+    .match-card:hover { border-color: var(--accent); }
+    .match-card.bye-match { border-style: dashed; opacity: 0.9; }
+    .match-card .match-label { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 6px; }
+    .match-card .team-row {
+      display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 4px; margin-bottom: 4px;
+      transition: background 0.15s;
+    }
+    .match-card .team-row.winner { background: rgba(63, 185, 80, 0.2); border-left: 3px solid var(--success); }
+    .match-card .team-row .away-tag { font-size: 0.65rem; color: var(--text-muted); margin-left: 4px; }
+    .match-card .team-row .team-name { flex: 1; font-weight: 500; }
+    .match-card .team-row .bye-badge { font-size: 0.7rem; background: var(--surface2); padding: 2px 6px; border-radius: 4px; }
+    .match-card .score-row { display: flex; align-items: center; gap: 8px; margin: 8px 0; flex-wrap: wrap; }
+    .match-card input[type="number"] {
+      width: 48px; padding: 6px; text-align: center; border-radius: 4px; border: 1px solid var(--border);
+      background: var(--bg); color: var(--text); font-size: 1rem;
+    }
+    .match-card input[type="number"]:focus { outline: none; border-color: var(--accent); }
+    .match-card input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    .match-card input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+    .match-card .score-label { font-size: 0.75rem; color: var(--text-muted); }
+    .match-card .winner-pill { display: inline-block; background: var(--success); color: white; padding: 4px 10px; border-radius: 12px; font-size: 0.8rem; font-weight: 600; margin-top: 6px; }
+    .match-card .pick-winner { display: flex; gap: 8px; margin-top: 8px; }
+    .match-card .pick-winner button { padding: 6px 12px; font-size: 0.8rem; }
+    .match-card .datetime-input { margin-top: 8px; }
+    .match-card .datetime-input input { width: 100%; padding: 6px; font-size: 0.85rem; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; color: var(--text); }
+    .match-card.placeholder-match { opacity: 0.85; }
+
+    /* Champion card */
+    .champion-card {
+      background: linear-gradient(135deg, var(--surface) 0%, var(--surface2) 100%);
+      border: 2px solid var(--accent); padding: 20px; text-align: center; min-width: 180px;
+    }
+    .bracket-area.broadcast .champion-card { min-width: 220px; padding: 28px; font-size: 1.2rem; }
+    .champion-card .champion-label { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 8px; }
+    .champion-card .champion-name { font-size: 1.2rem; font-weight: 700; color: var(--accent); }
+
+    /* Modal */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center;
+      z-index: 1000; padding: 20px;
+    }
+    .modal { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; max-width: 500px; width: 100%; max-height: 90vh; overflow-y: auto; }
+    .modal h3 { margin-bottom: 16px; }
+    .modal textarea { width: 100%; min-height: 120px; padding: 12px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); font-family: monospace; font-size: 0.85rem; resize: vertical; }
+    .modal textarea:focus { outline: none; border-color: var(--accent); }
+    .modal .modal-actions { display: flex; gap: 12px; margin-top: 16px; flex-wrap: wrap; }
+
+    /* Toast */
+    .toast {
+      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(100px);
+      background: var(--surface2); border: 1px solid var(--border); padding: 12px 24px;
+      border-radius: var(--radius); z-index: 1001; opacity: 0; transition: all 0.3s ease;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+
+    /* Fullscreen */
+    .main.fullscreen { position: fixed; top: 52px; left: 0; right: 0; bottom: 0; z-index: 999; background: var(--bg); transition: opacity 0.2s ease; }
+    body.fullscreen-mode .top-bar { position: relative; z-index: 1000; }
+    #fullscreen-btn.unsupported { opacity: 0.5; cursor: not-allowed; }
+
+    .lock-msg { font-size: 0.8rem; color: var(--warning); margin-top: 8px; }
+
+    /* Mode: Minimized (embed) vs Fullscreen (edit) */
+    .soccer-bracket-app { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: var(--surface); }
+    .soccer-bracket-app.mode-minimized { max-height: 420px; display: flex; flex-direction: column; }
+    .soccer-bracket-app.mode-fullscreen { min-height: 100vh; background: var(--bg); border: none; border-radius: 0; }
+
+    .minimized-view { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+    .mode-fullscreen .minimized-view { display: none; }
+    .minimized-header {
+      display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--surface2);
+      border-bottom: 1px solid var(--border); flex-shrink: 0;
+    }
+    .minimized-header h2 { font-size: 0.9rem; font-weight: 600; margin: 0; margin-right: auto; }
+    .minimized-results {
+      flex: 1; overflow: auto; padding: 12px; max-height: 360px; -webkit-overflow-scrolling: touch;
+    }
+    .minimized-results .round-column { flex-shrink: 0; }
+    .minimized-results .round-title { font-size: 0.7rem; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; text-align: center; }
+    .minimized-results .result-card {
+      background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px;
+      margin-bottom: 6px; font-size: 0.8rem; min-width: 140px;
+    }
+    .minimized-results .result-card .team-line { padding: 2px 0; }
+    .minimized-results .result-card .team-line.winner { font-weight: 600; color: var(--success); }
+    .minimized-results .result-card .score-line { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }
+    .minimized-results .result-card.champion-card { border-color: var(--accent); background: rgba(88, 166, 255, 0.1); text-align: center; padding: 10px; }
+    .minimized-results .result-card.champion-card .champ-name { font-size: 1rem; font-weight: 700; color: var(--accent); }
+    .minimized-results .empty-msg { text-align: center; color: var(--text-muted); font-size: 0.85rem; padding: 24px; }
+    .minimized-results .bracket-rounds { display: flex; gap: 12px; min-width: max-content; }
+    .minimized-results .round-matches { display: flex; flex-direction: column; gap: 6px; }
+
+    .fullscreen-view { display: none; }
+    .mode-fullscreen .fullscreen-view { display: flex; flex-direction: column; flex: 1; min-height: 100vh; }
+
+  </style>
+
+
+  <div id="soccer-bracket-app" class="soccer-bracket-app mode-fullscreen">
+    <div class="minimized-view">
+      <div class="minimized-header">
+        <h2>⚽ Soccer Knockout Bracket</h2>
+        <button id="open-fullscreen-btn" class="btn primary">Open Fullscreen to Edit</button>
+        <button id="minimized-export-btn" class="btn">Export JSON</button>
+      </div>
+      <div class="minimized-results" id="minimized-results"></div>
+    </div>
+
+    <div class="fullscreen-view">
+  <div class="top-bar">
+    <h1>⚽ Soccer Knockout Bracket</h1>
+    <button id="fullscreen-btn" title="Toggle fullscreen">⛶ Fullscreen</button>
+    <button id="broadcast-btn" title="Broadcast view">📺 Broadcast</button>
+    <button id="export-btn">Export JSON</button>
+    <button id="import-btn">Import JSON</button>
+    <button id="clear-btn" class="danger">Clear</button>
+  </div>
+
+  <div class="main" id="main">
+    <aside class="sidebar">
+      <div class="panel" id="setup-panel">
+        <div class="panel-header">
+          <span>Setup</span>
+          <span class="chevron">▼</span>
+        </div>
+        <div class="panel-content">
+          <div class="form-group">
+            <label>Teams participating (2–32)</label>
+            <input type="number" id="teams-count" min="2" max="32" value="16">
+          </div>
+          <div class="btn-row">
+            <button class="btn" id="add-team">Add Team</button>
+            <button class="btn" id="quick-fill">Quick Fill</button>
+            <button class="btn" id="auto-fill-seeds">Auto-fill Seeds</button>
+          </div>
+          <div class="form-group" style="margin-top: 16px;">
+            <label>Team list (drag to seed)</label>
+            <div class="team-list" id="team-list" data-drop="teams"></div>
+          </div>
+          <div class="form-group" style="margin-top: 16px;">
+            <label>Seeding Slots 1–32</label>
+            <p id="lock-msg" class="lock-msg" style="display:none;">Clear results to reseed.</p>
+            <div class="seeding-slots" id="seeding-slots"></div>
+          </div>
+          <button class="btn primary" id="generate-bracket" style="margin-top: 12px; width: 100%;">Generate / Refresh Bracket</button>
+        </div>
+      </div>
+      <div class="panel" id="rules-panel">
+        <div class="panel-header">
+          <span>Rules</span>
+          <span class="chevron">▼</span>
+        </div>
+        <div class="panel-content">
+          <div class="toggle-row">
+            <span>Two-leg ties</span>
+            <div class="toggle" id="rule-two-leg" data-rule="twoLeg"></div>
+          </div>
+          <div class="toggle-row" id="away-goals-row">
+            <span>Away goals rule</span>
+            <div class="toggle" id="rule-away-goals" data-rule="awayGoals"></div>
+          </div>
+          <div class="toggle-row">
+            <span>Extra time allowed</span>
+            <div class="toggle" id="rule-extra-time" data-rule="extraTime"></div>
+          </div>
+          <div class="toggle-row">
+            <span>Penalties allowed</span>
+            <div class="toggle on" id="rule-penalties" data-rule="penalties"></div>
+          </div>
+          <div class="toggle-row">
+            <span>Show date/time fields</span>
+            <div class="toggle" id="rule-datetime" data-rule="showDateTime"></div>
+          </div>
+        </div>
+      </div>
+    </aside>
+    <main class="bracket-area" id="bracket-area">
+      <div class="bracket-rounds" id="bracket-rounds"></div>
+    </main>
+  </div>
+    </div>
+  </div>
+
+  <!-- Modals -->
+  <div class="modal-overlay" id="clear-modal" style="display:none;">
+    <div class="modal">
+      <h3>Clear all data?</h3>
+      <p>Are you sure? This deletes all saved bracket data.</p>
+      <div class="modal-actions">
+        <button class="btn" id="clear-cancel">Cancel</button>
+        <button class="btn danger" id="clear-confirm">Confirm</button>
+      </div>
+    </div>
+  </div>
+  <div class="modal-overlay" id="export-modal" style="display:none;">
+    <div class="modal">
+      <h3>Export JSON</h3>
+      <textarea id="export-textarea" readonly=""></textarea>
+      <div class="modal-actions">
+        <button class="btn" id="export-copy">Copy</button>
+        <button class="btn primary" id="export-download">Download .json</button>
+        <button class="btn" id="export-close">Close</button>
+      </div>
+    </div>
+  </div>
+  <div class="modal-overlay" id="import-modal" style="display:none;">
+    <div class="modal">
+      <h3>Import JSON</h3>
+      <textarea id="import-textarea" placeholder="Paste JSON here..."></textarea>
+      <input type="file" id="import-file" accept=".json" style="margin-top: 12px; color: var(--text);">
+      <div class="modal-actions">
+        <button class="btn primary" id="import-confirm">Import</button>
+        <button class="btn" id="import-close">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+  (function() {
+    const STORAGE_KEY = 'soccer-bracket-state';
+    const ROUNDS = ['R32', 'R16', 'QF', 'SF', 'Final', 'Champion'];
+
+    // --- Fullscreen utilities ---
+    const fullscreenSupported = !!(document.documentElement.requestFullscreen && document.exitFullscreen);
+    function isFullscreen() {
+      return !!(document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement);
+    }
+    function syncViewMode() {
+      const fs = isFullscreen();
+      state.fullscreen = fs;
+      const app = document.getElementById('soccer-bracket-app');
+      if (app) {
+        app.classList.add('mode-fullscreen');
+        app.classList.remove('mode-minimized');
+      }
+      document.body.classList.toggle('embed-mode', false);
+      document.getElementById('main').classList.toggle('fullscreen', fs);
+      document.body.classList.toggle('fullscreen-mode', fs);
+      const btn = document.getElementById('fullscreen-btn');
+      if (btn) {
+        btn.textContent = fs ? '✕ Exit Fullscreen' : '⛶ Fullscreen';
+        btn.title = fs ? 'Exit fullscreen' : 'Enter fullscreen (optional)';
+      }
+      render();
+      if (!fs) renderResultsOnly();
+      save();
+    }
+    function syncFullscreenUI() { syncViewMode(); }
+    function toggleFullscreen() {
+      if (!fullscreenSupported) return;
+      if (isFullscreen()) {
+        document.exitFullscreen?.();
+      } else {
+        document.documentElement.requestFullscreen?.();
+      }
+    }
+
+    // --- State ---
+    let state = {
+      teamsParticipating: 16,
+      teams: [],
+      seeds: Array(32).fill(null),
+      bracketSeeds: null,
+      rules: { twoLeg: false, awayGoals: false, extraTime: false, penalties: true, showDateTime: false },
+      matches: {},
+      broadcastMode: false,
+      fullscreen: false,
+      setupCollapsed: false,
+      rulesCollapsed: false
+    };
+
+    function getMatchKey(roundIdx, matchIdx) {
+      const prefixes = ['r32', 'r16', 'qf', 'sf', 'final'];
+      return roundIdx < 5 ? `${prefixes[roundIdx]}-${matchIdx}` : null;
+    }
+
+    function getMatchData(key) {
+      if (!state.matches[key]) state.matches[key] = {};
+      return state.matches[key];
+    }
+
+    // --- Bracket structure: R32 has 16 matches, R16=8, QF=4, SF=2, Final=1 ---
+    function getBracketStructure() {
+      const r32Count = 16, r16Count = 8, qfCount = 4, sfCount = 2;
+      return [
+        { name: 'R32', count: r32Count },
+        { name: 'R16', count: r16Count },
+        { name: 'QF', count: qfCount },
+        { name: 'SF', count: sfCount },
+        { name: 'Final', count: 1 },
+        { name: 'Champion', count: 1 }
+      ];
+    }
+
+    function getTeamsForR32Match(matchIdx) {
+      if (!state.bracketSeeds) return ['—', '—'];
+      const s1 = state.bracketSeeds[matchIdx * 2];
+      const s2 = state.bracketSeeds[matchIdx * 2 + 1];
+      return [s1 || 'BYE', s2 || 'BYE'];
+    }
+
+    function getWinnerForMatch(roundIdx, matchIdx) {
+      const key = getMatchKey(roundIdx, matchIdx);
+      if (!key || roundIdx === 5) return null;
+
+      const data = getMatchData(key);
+      const [teamA, teamB] = getTeamsForMatch(roundIdx, matchIdx);
+
+      if (teamA === 'BYE' && teamB === 'BYE') return 'BYE';
+      if (teamA === 'BYE') return teamB;
+      if (teamB === 'BYE') return teamA;
+
+      const r = state.rules;
+
+      if (r.twoLeg) {
+        const hasLeg = (x) => x !== undefined && x !== '' && !isNaN(parseInt(x));
+        const hasAllLegs = hasLeg(data.leg1A) && hasLeg(data.leg1B) && hasLeg(data.leg2A) && hasLeg(data.leg2B);
+        if (!hasAllLegs) return null;
+
+        const a1 = parseInt(data.leg1A) || 0, b1 = parseInt(data.leg1B) || 0;
+        const a2 = parseInt(data.leg2A) || 0, b2 = parseInt(data.leg2B) || 0;
+        const aggA = a1 + a2, aggB = b1 + b2;
+
+        if (aggA > aggB) return teamA;
+        if (aggB > aggA) return teamB;
+
+        if (r.awayGoals) {
+          const awayA = a2, awayB = b1;
+          if (awayA > awayB) return teamA;
+          if (awayB > awayA) return teamB;
+        }
+
+        const etA = parseInt(data.etScoreA);
+        const etB = parseInt(data.etScoreB);
+        if (r.extraTime && !isNaN(etA) && !isNaN(etB)) {
+          if (etA > etB) return teamA;
+          if (etB > etA) return teamB;
+        }
+
+        const pkA = parseInt(data.pkScoreA);
+        const pkB = parseInt(data.pkScoreB);
+        if (r.penalties && !isNaN(pkA) && !isNaN(pkB)) {
+          if (pkA > pkB) return teamA;
+          if (pkB > pkA) return teamB;
+        }
+
+        if (data.manualWinner === 'A') return teamA;
+        if (data.manualWinner === 'B') return teamB;
+        return null;
+      } else {
+        const sa = parseInt(data.scoreA);
+        const sb = parseInt(data.scoreB);
+        if (isNaN(sa) || isNaN(sb)) return null;
+
+        if (sa > sb) return teamA;
+        if (sb > sa) return teamB;
+
+        const etA = parseInt(data.etScoreA);
+        const etB = parseInt(data.etScoreB);
+        if (r.extraTime && !isNaN(etA) && !isNaN(etB)) {
+          if (etA > etB) return teamA;
+          if (etB > etA) return teamB;
+        }
+
+        const pkA = parseInt(data.pkScoreA);
+        const pkB = parseInt(data.pkScoreB);
+        if (r.penalties && !isNaN(pkA) && !isNaN(pkB)) {
+          if (pkA > pkB) return teamA;
+          if (pkB > pkA) return teamB;
+        }
+
+        if (data.manualWinner === 'A') return teamA;
+        if (data.manualWinner === 'B') return teamB;
+        return null;
+      }
+    }
+
+    function getTeamsForMatch(roundIdx, matchIdx) {
+      if (roundIdx === 0) return getTeamsForR32Match(matchIdx);
+      if (roundIdx === 5) return [getWinnerForMatch(4, 0), null];
+
+      const prevRoundCount = [16, 8, 4, 2, 1][roundIdx - 1];
+      const prevMatchA = matchIdx * 2;
+      const prevMatchB = matchIdx * 2 + 1;
+      const winnerA = prevMatchA < prevRoundCount ? getWinnerForMatch(roundIdx - 1, prevMatchA) : 'BYE';
+      const winnerB = prevMatchB < prevRoundCount ? getWinnerForMatch(roundIdx - 1, prevMatchB) : 'BYE';
+      return [winnerA || 'TBD', winnerB || 'TBD'];
+    }
+
+    function getDisplayScoreForKey(key) {
+      const data = getMatchData(key);
+      const r = state.rules;
+      if (r.twoLeg) {
+        const a1 = parseInt(data.leg1A) || 0, b1 = parseInt(data.leg1B) || 0;
+        const a2 = parseInt(data.leg2A) || 0, b2 = parseInt(data.leg2B) || 0;
+        if (a1 === 0 && b1 === 0 && a2 === 0 && b2 === 0 && !data.leg1A && !data.leg2A) return '';
+        return `${a1 + a2}-${b1 + b2} (agg)`;
+      } else {
+        const sa = parseInt(data.scoreA), sb = parseInt(data.scoreB);
+        if (isNaN(sa) || isNaN(sb)) return '';
+        return `${sa}-${sb}`;
+      }
+    }
+
+    function hasAnyScores() {
+      for (const k of Object.keys(state.matches)) {
+        const d = state.matches[k];
+        if (d.scoreA !== undefined || d.scoreB !== undefined || d.leg1A !== undefined || d.leg1B !== undefined ||
+            d.leg2A !== undefined || d.leg2B !== undefined || d.manualWinner) return true;
+      }
+      return false;
+    }
+
+    // --- Persist ---
+    function save() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      } catch (e) {}
+    }
+
+    function load() {
+      try {
+        const s = localStorage.getItem(STORAGE_KEY);
+        if (s) {
+          const parsed = JSON.parse(s);
+          state = { ...state, ...parsed };
+          if (!Array.isArray(state.seeds)) state.seeds = Array(32).fill(null);
+          if (!state.matches) state.matches = {};
+        }
+      } catch (e) {}
+    }
+
+    // --- Toast ---
+    function toast(msg) {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.classList.add('show');
+      clearTimeout(window._toastTm);
+      window._toastTm = setTimeout(() => el.classList.remove('show'), 3000);
+    }
+
+    // --- Render ---
+    function render() {
+      renderTeamList();
+      renderSeedingSlots();
+      renderRulesToggles();
+      renderBracket();
+      updateLockMsg();
+      updateAwayGoalsRow();
+    }
+
+    function renderResultsOnly() {
+      const container = document.getElementById('minimized-results');
+      if (!container) return;
+      container.innerHTML = '';
+
+      if (!state.bracketSeeds) {
+        container.innerHTML = '<div class="empty-msg">No bracket yet.</div>';
+        return;
+      }
+
+      const struct = getBracketStructure();
+      const roundsEl = document.createElement('div');
+      roundsEl.className = 'bracket-rounds';
+
+      struct.forEach((round, roundIdx) => {
+        const col = document.createElement('div');
+        col.className = 'round-column';
+        col.innerHTML = `<div class="round-title">${round.name}</div>`;
+        const matchesContainer = document.createElement('div');
+        matchesContainer.className = 'round-matches';
+
+        if (round.name === 'Champion') {
+          const winner = getWinnerForMatch(4, 0);
+          const card = document.createElement('div');
+          card.className = 'result-card champion-card';
+          card.innerHTML = `<div class="champ-name">${winner && winner !== 'BYE' ? escapeHtml(winner) : '—'}</div>`;
+          matchesContainer.appendChild(card);
+        } else {
+          for (let m = 0; m < round.count; m++) {
+            const [teamA, teamB] = getTeamsForMatch(roundIdx, m);
+            const winner = getWinnerForMatch(roundIdx, m);
+            const key = getMatchKey(roundIdx, m);
+            const scoreStr = key ? getDisplayScoreForKey(key) : '';
+            const isBye = teamA === 'BYE' || teamB === 'BYE';
+            const isPlaceholder = teamA === '—' || teamB === '—';
+
+            const card = document.createElement('div');
+            card.className = 'result-card' + (isBye ? ' bye-match' : '');
+            let html = '';
+            if (isBye) {
+              html = `<div class="team-line">${teamA === 'BYE' ? '<span class="bye-badge">BYE</span>' : escapeHtml(teamA)}</div>`;
+              html += `<div class="team-line">${teamB === 'BYE' ? '<span class="bye-badge">BYE</span>' : escapeHtml(teamB)}</div>`;
+              if (winner && winner !== 'BYE') html += `<div class="score-line">${escapeHtml(winner)} advances</div>`;
+            } else if (isPlaceholder) {
+              html = `<div class="team-line">—</div><div class="team-line">—</div>`;
+            } else {
+              const aWins = winner === teamA, bWins = winner === teamB;
+              html = `<div class="team-line ${aWins ? 'winner' : ''}">${escapeHtml(teamA)}</div>`;
+              html += `<div class="team-line ${bWins ? 'winner' : ''}">${escapeHtml(teamB)}</div>`;
+              if (scoreStr) html += `<div class="score-line">${scoreStr}</div>`;
+            }
+            card.innerHTML = html;
+            matchesContainer.appendChild(card);
+          }
+        }
+        col.appendChild(matchesContainer);
+        roundsEl.appendChild(col);
+      });
+      container.appendChild(roundsEl);
+    }
+
+    function updateLockMsg() {
+      const el = document.getElementById('lock-msg');
+      const locked = hasAnyScores();
+      el.style.display = locked ? 'block' : 'none';
+    }
+
+    function updateAwayGoalsRow() {
+      const row = document.getElementById('away-goals-row');
+      row.classList.toggle('disabled', !state.rules.twoLeg);
+    }
+
+    function renderTeamList() {
+      const list = document.getElementById('team-list');
+      list.innerHTML = '';
+      state.teams.forEach((name, i) => {
+        const div = document.createElement('div');
+        div.className = 'team-item';
+        div.draggable = true;
+        div.dataset.index = i;
+        div.dataset.source = 'team';
+        div.innerHTML = `<span class="handle">☰</span><input type="text" value="${escapeHtml(name)}" data-team-idx="${i}">`;
+        list.appendChild(div);
+      });
+    }
+
+    function renderSeedingSlots() {
+      const container = document.getElementById('seeding-slots');
+      container.innerHTML = '';
+      const locked = hasAnyScores();
+      for (let i = 0; i < 32; i++) {
+        const div = document.createElement('div');
+        div.className = 'seed-slot' + (state.seeds[i] ? ' filled' : '');
+        div.dataset.slot = i;
+        div.dataset.drop = 'slot';
+        if (!locked) {
+          div.draggable = !!state.seeds[i];
+          div.dataset.source = state.seeds[i] ? 'slot' : '';
+        }
+        const team = state.seeds[i];
+        div.innerHTML = `<div class="slot-num">#${i + 1}</div><div class="team-name">${team ? escapeHtml(team) : ''}</div>${!team ? '<span class="bye-badge">BYE</span>' : ''}`;
+        container.appendChild(div);
+      }
+    }
+
+    const RULE_IDS = { twoLeg: 'rule-two-leg', awayGoals: 'rule-away-goals', extraTime: 'rule-extra-time', penalties: 'rule-penalties', showDateTime: 'rule-datetime' };
+    function renderRulesToggles() {
+      Object.keys(RULE_IDS).forEach(r => {
+        const el = document.getElementById(RULE_IDS[r]);
+        if (el) el.classList.toggle('on', state.rules[r]);
+      });
+    }
+
+    function renderBracket() {
+      const area = document.getElementById('bracket-area');
+      area.classList.toggle('broadcast', state.broadcastMode);
+
+      const container = document.getElementById('bracket-rounds');
+      container.innerHTML = '';
+
+      const struct = getBracketStructure();
+      struct.forEach((round, roundIdx) => {
+        const col = document.createElement('div');
+        col.className = 'round-column';
+        col.innerHTML = `<div class="round-title">${round.name}</div><div class="round-matches" data-round="${roundIdx}"></div>`;
+        const matchesEl = col.querySelector('.round-matches');
+
+        if (round.name === 'Champion') {
+          const winner = getWinnerForMatch(4, 0);
+          const card = document.createElement('div');
+          card.className = 'champion-card';
+          card.innerHTML = `<div class="champion-label">Champion</div><div class="champion-name">${winner ? escapeHtml(winner) : '—'}</div>`;
+          matchesEl.appendChild(card);
+        } else {
+          for (let m = 0; m < round.count; m++) {
+            matchesEl.appendChild(createMatchCard(roundIdx, m));
+          }
+        }
+        container.appendChild(col);
+      });
+    }
+
+    function createMatchCard(roundIdx, matchIdx) {
+      const [teamA, teamB] = getTeamsForMatch(roundIdx, matchIdx);
+      const key = getMatchKey(roundIdx, matchIdx);
+      const data = getMatchData(key);
+      const isBye = teamA === 'BYE' || teamB === 'BYE';
+      const isPlaceholder = teamA === '—' || teamB === '—';
+      const winner = getWinnerForMatch(roundIdx, matchIdx);
+      const r = state.rules;
+
+      const card = document.createElement('div');
+      card.className = 'match-card' + (isBye ? ' bye-match' : '') + (isPlaceholder ? ' placeholder-match' : '');
+      card.dataset.round = roundIdx;
+      card.dataset.match = matchIdx;
+
+      let html = `<div class="match-label">${ROUNDS[roundIdx]} Match ${matchIdx + 1}</div>`;
+
+      const teamARow = `<div class="team-row ${winner === teamA ? 'winner' : ''}"><span class="team-name">${teamA === 'BYE' ? '<span class="bye-badge">BYE</span>' : escapeHtml(teamA)}</span></div>`;
+      const teamBRow = `<div class="team-row ${winner === teamB ? 'winner' : ''}"><span class="team-name">${teamB === 'BYE' ? '<span class="bye-badge">BYE</span>' : escapeHtml(teamB)}</span></div>`;
+
+      if (isBye) {
+        html += teamARow + teamBRow;
+        if (winner && winner !== 'BYE') html += `<div class="winner-pill">${escapeHtml(winner)} advances</div>`;
+      } else if (isPlaceholder) {
+        html += teamARow + teamBRow;
+        html += `<div class="score-label" style="margin-top:8px;">Generate bracket from Setup</div>`;
+      } else {
+        if (r.twoLeg) {
+          html += teamARow.replace('</span></div>', '<span class="away-tag">(away leg 2)</span></span></div>');
+          html += teamBRow.replace('</span></div>', '<span class="away-tag">(away leg 1)</span></span></div>');
+        } else {
+          html += teamARow + teamBRow;
+        }
+
+        if (r.showDateTime) {
+          html += `<div class="datetime-input"><input type="datetime-local" data-field="datetime" data-key="${key}" value="${data.datetime || ''}"></div>`;
+        }
+
+        if (!r.twoLeg) {
+          html += buildSingleLegScoreFields(key, data, r);
+        } else {
+          html += buildTwoLegScoreFields(key, data, r);
+        }
+
+        if (winner) html += `<div class="winner-pill">Winner: ${escapeHtml(winner)}</div>`;
+      }
+
+      card.innerHTML = html;
+      attachMatchListeners(card, key, data, teamA, teamB, r, isBye);
+      return card;
+    }
+
+    function buildSingleLegScoreFields(key, data, r) {
+      let html = `<div class="score-row"><input type="number" min="0" data-field="scoreA" data-key="${key}" value="${data.scoreA ?? ''}" placeholder="A"><span class="score-label">–</span><input type="number" min="0" data-field="scoreB" data-key="${key}" value="${data.scoreB ?? ''}" placeholder="B"></div>`;
+
+      const sa = parseInt(data.scoreA);
+      const sb = parseInt(data.scoreB);
+      const tied = !isNaN(sa) && !isNaN(sb) && sa === sb;
+
+      if (tied) {
+        if (r.extraTime) {
+          html += `<div class="score-row"><span class="score-label">ET:</span><input type="number" min="0" data-field="etScoreA" data-key="${key}" value="${data.etScoreA ?? ''}"><span>–</span><input type="number" min="0" data-field="etScoreB" data-key="${key}" value="${data.etScoreB ?? ''}"></div>`;
+          const etA = parseInt(data.etScoreA);
+          const etB = parseInt(data.etScoreB);
+          const etTied = !isNaN(etA) && !isNaN(etB) && etA === etB;
+          if (etTied && r.penalties) {
+            html += `<div class="score-row"><span class="score-label">PK:</span><input type="number" min="0" data-field="pkScoreA" data-key="${key}" value="${data.pkScoreA ?? ''}"><span>–</span><input type="number" min="0" data-field="pkScoreB" data-key="${key}" value="${data.pkScoreB ?? ''}"></div>`;
+          }
+          if (etTied && (!r.penalties || (r.penalties && isNaN(parseInt(data.pkScoreA)) && isNaN(parseInt(data.pkScoreB))))) {
+            html += `<div class="pick-winner"><button data-pick="A" data-key="${key}">A wins</button><button data-pick="B" data-key="${key}">B wins</button></div>`;
+          }
+        } else if (r.penalties) {
+          html += `<div class="score-row"><span class="score-label">PK:</span><input type="number" min="0" data-field="pkScoreA" data-key="${key}" value="${data.pkScoreA ?? ''}"><span>–</span><input type="number" min="0" data-field="pkScoreB" data-key="${key}" value="${data.pkScoreB ?? ''}"></div>`;
+          if (isNaN(parseInt(data.pkScoreA)) && isNaN(parseInt(data.pkScoreB))) {
+            html += `<div class="pick-winner"><button data-pick="A" data-key="${key}">A wins</button><button data-pick="B" data-key="${key}">B wins</button></div>`;
+          }
+        } else {
+          html += `<div class="pick-winner"><button data-pick="A" data-key="${key}">A wins</button><button data-pick="B" data-key="${key}">B wins</button></div>`;
+        }
+      }
+      return html;
+    }
+
+    function buildTwoLegScoreFields(key, data, r) {
+      let html = `<div class="score-row"><span class="score-label">Leg 1:</span><input type="number" min="0" data-field="leg1A" data-key="${key}" value="${data.leg1A ?? ''}"><span>–</span><input type="number" min="0" data-field="leg1B" data-key="${key}" value="${data.leg1B ?? ''}"></div>`;
+      html += `<div class="score-row"><span class="score-label">Leg 2:</span><input type="number" min="0" data-field="leg2A" data-key="${key}" value="${data.leg2A ?? ''}"><span>–</span><input type="number" min="0" data-field="leg2B" data-key="${key}" value="${data.leg2B ?? ''}"></div>`;
+
+      const hasLeg = (x) => x !== undefined && x !== '' && !isNaN(parseInt(x));
+      const hasAllLegs = hasLeg(data.leg1A) && hasLeg(data.leg1B) && hasLeg(data.leg2A) && hasLeg(data.leg2B);
+      const a1 = parseInt(data.leg1A) || 0, b1 = parseInt(data.leg1B) || 0;
+      const a2 = parseInt(data.leg2A) || 0, b2 = parseInt(data.leg2B) || 0;
+      const aggA = a1 + a2, aggB = b1 + b2;
+      const tied = hasAllLegs && aggA === aggB;
+
+      let awayDecided = false;
+      if (tied && r.awayGoals) {
+        const awayA = a2, awayB = b1;
+        awayDecided = awayA !== awayB;
+      }
+
+      if (tied && !awayDecided) {
+        if (r.extraTime) {
+          html += `<div class="score-row"><span class="score-label">ET:</span><input type="number" min="0" data-field="etScoreA" data-key="${key}" value="${data.etScoreA ?? ''}"><span>–</span><input type="number" min="0" data-field="etScoreB" data-key="${key}" value="${data.etScoreB ?? ''}"></div>`;
+          const etA = parseInt(data.etScoreA);
+          const etB = parseInt(data.etScoreB);
+          const etTied = !isNaN(etA) && !isNaN(etB) && etA === etB;
+          if (etTied && r.penalties) {
+            html += `<div class="score-row"><span class="score-label">PK:</span><input type="number" min="0" data-field="pkScoreA" data-key="${key}" value="${data.pkScoreA ?? ''}"><span>–</span><input type="number" min="0" data-field="pkScoreB" data-key="${key}" value="${data.pkScoreB ?? ''}"></div>`;
+          }
+          if (etTied && (!r.penalties || (r.penalties && isNaN(parseInt(data.pkScoreA)) && isNaN(parseInt(data.pkScoreB))))) {
+            html += `<div class="pick-winner"><button data-pick="A" data-key="${key}">A wins</button><button data-pick="B" data-key="${key}">B wins</button></div>`;
+          }
+        } else if (r.penalties) {
+          html += `<div class="score-row"><span class="score-label">PK:</span><input type="number" min="0" data-field="pkScoreA" data-key="${key}" value="${data.pkScoreA ?? ''}"><span>–</span><input type="number" min="0" data-field="pkScoreB" data-key="${key}" value="${data.pkScoreB ?? ''}"></div>`;
+          if (isNaN(parseInt(data.pkScoreA)) && isNaN(parseInt(data.pkScoreB))) {
+            html += `<div class="pick-winner"><button data-pick="A" data-key="${key}">A wins</button><button data-pick="B" data-key="${key}">B wins</button></div>`;
+          }
+        } else {
+          html += `<div class="pick-winner"><button data-pick="A" data-key="${key}">A wins</button><button data-pick="B" data-key="${key}">B wins</button></div>`;
+        }
+      }
+      return html;
+    }
+
+    function attachMatchListeners(card, key, data, teamA, teamB, r, isBye) {
+      card.querySelectorAll('input').forEach(inp => {
+        inp.addEventListener('input', () => {
+          const field = inp.dataset.field;
+          const val = inp.type === 'number' ? (inp.value === '' ? undefined : inp.value) : inp.value;
+          getMatchData(key)[field] = val;
+          save();
+          render();
+        });
+        inp.addEventListener('change', () => {
+          const field = inp.dataset.field;
+          const val = inp.type === 'number' ? (inp.value === '' ? undefined : inp.value) : inp.value;
+          getMatchData(key)[field] = val;
+          save();
+          render();
+        });
+      });
+      card.querySelectorAll('[data-pick]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          getMatchData(key).manualWinner = btn.dataset.pick;
+          save();
+          render();
+        });
+      });
+    }
+
+    function escapeHtml(s) {
+      if (!s) return '';
+      const d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    // --- Event handlers ---
+    function init() {
+      load();
+      const app = document.getElementById('soccer-bracket-app');
+      app.classList.remove('mode-minimized', 'mode-fullscreen');
+      app.classList.add(isFullscreen() ? 'mode-fullscreen' : 'mode-minimized');
+      document.getElementById('main').classList.toggle('broadcast', state.broadcastMode);
+      document.getElementById('bracket-area').classList.toggle('broadcast', state.broadcastMode);
+      document.getElementById('setup-panel').classList.toggle('collapsed', state.setupCollapsed);
+      document.getElementById('rules-panel').classList.toggle('collapsed', state.rulesCollapsed);
+      syncViewMode();
+
+      document.getElementById('open-fullscreen-btn').addEventListener('click', () => toggleFullscreen());
+      document.getElementById('minimized-export-btn').addEventListener('click', () => {
+        document.getElementById('export-textarea').value = JSON.stringify(state, null, 2);
+        document.getElementById('export-modal').style.display = 'flex';
+      });
+      document.getElementById('minimized-results').addEventListener('click', () => {
+        if (!isFullscreen()) toast('Editing is available in fullscreen mode.');
+      });
+
+      document.getElementById('teams-count').addEventListener('change', e => {
+        let v = parseInt(e.target.value) || 16;
+        v = Math.max(2, Math.min(32, v));
+        state.teamsParticipating = v;
+        e.target.value = v;
+        save();
+        render();
+      });
+
+      document.getElementById('add-team').addEventListener('click', () => {
+        state.teams.push('');
+        save();
+        render();
+      });
+
+      document.getElementById('quick-fill').addEventListener('click', () => {
+        const n = state.teamsParticipating;
+        if (state.teams.length === 0) {
+          state.teams = Array(n).fill('').map((_, i) => `Team ${i + 1}`);
+        }
+        save();
+        render();
+      });
+
+      document.getElementById('auto-fill-seeds').addEventListener('click', () => {
+        state.seeds = Array(32).fill(null);
+        state.teams.slice(0, 32).forEach((t, i) => state.seeds[i] = t || null);
+        save();
+        render();
+      });
+
+      document.getElementById('generate-bracket').addEventListener('click', () => {
+        state.bracketSeeds = [...state.seeds];
+        save();
+        render();
+        toast('Bracket generated.');
+      });
+
+      document.getElementById('team-list').addEventListener('input', e => {
+        if (e.target.matches('input[data-team-idx]')) {
+          const i = parseInt(e.target.dataset.teamIdx);
+          state.teams[i] = e.target.value;
+          save();
+        }
+      });
+
+      document.getElementById('team-list').addEventListener('dragstart', e => {
+        if (e.target.closest('.team-item')) {
+          const item = e.target.closest('.team-item');
+          item.classList.add('dragging');
+          e.dataTransfer.effectAllowed = 'move';
+          e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'team', index: parseInt(item.dataset.index) }));
+        }
+      });
+      document.getElementById('team-list').addEventListener('dragend', e => {
+        document.querySelectorAll('.team-item').forEach(el => el.classList.remove('dragging'));
+      });
+
+      document.getElementById('seeding-slots').addEventListener('dragstart', e => {
+        const slot = e.target.closest('.seed-slot.filled');
+        if (slot && !hasAnyScores()) {
+          e.dataTransfer.effectAllowed = 'move';
+          e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'slot', index: parseInt(slot.dataset.slot) }));
+        }
+      });
+      document.getElementById('seeding-slots').addEventListener('dragover', e => {
+        e.preventDefault();
+        const slot = e.target.closest('.seed-slot');
+        if (slot && !hasAnyScores()) slot.classList.add('drag-over');
+      });
+      document.getElementById('seeding-slots').addEventListener('dragleave', e => {
+        const slot = e.target.closest('.seed-slot');
+        if (slot) slot.classList.remove('drag-over');
+      });
+      document.getElementById('seeding-slots').addEventListener('drop', e => {
+        e.preventDefault();
+        document.querySelectorAll('.seed-slot').forEach(el => el.classList.remove('drag-over'));
+        if (hasAnyScores()) return;
+        const slot = e.target.closest('.seed-slot');
+        if (!slot) return;
+        try {
+          const d = JSON.parse(e.dataTransfer.getData('text/plain'));
+          const targetSlot = parseInt(slot.dataset.slot);
+          if (d.type === 'team') {
+            const team = state.teams[d.index];
+            if (team) {
+              const existing = state.seeds[targetSlot];
+              state.seeds[targetSlot] = team;
+              if (existing) {
+                const idx = state.teams.indexOf(existing);
+                if (idx < 0) state.teams.push(existing);
+              }
+            }
+          } else if (d.type === 'slot') {
+            const other = state.seeds[d.index];
+            const current = state.seeds[targetSlot];
+            state.seeds[targetSlot] = other;
+            state.seeds[d.index] = current;
+          }
+          save();
+          render();
+        } catch (err) {}
+      });
+
+      document.getElementById('team-list').addEventListener('dragover', e => {
+        e.preventDefault();
+        if (e.dataTransfer.types.includes('text/plain')) {
+          try {
+            const d = JSON.parse(e.dataTransfer.getData('text/plain'));
+            if (d.type === 'slot') e.dataTransfer.dropEffect = 'move';
+          } catch (_) {}
+        }
+      });
+      document.getElementById('team-list').addEventListener('drop', e => {
+        e.preventDefault();
+        if (hasAnyScores()) return;
+        try {
+          const d = JSON.parse(e.dataTransfer.getData('text/plain'));
+          if (d.type === 'slot') {
+            const team = state.seeds[d.index];
+            if (team) {
+              state.seeds[d.index] = null;
+              if (!state.teams.includes(team)) state.teams.push(team);
+              save();
+              render();
+            }
+          }
+        } catch (_) {}
+      });
+
+      document.querySelectorAll('.toggle').forEach(t => {
+        t.addEventListener('click', () => {
+          const r = t.dataset.rule;
+          state.rules[r] = !state.rules[r];
+          if (r === 'twoLeg' && !state.rules.twoLeg) state.rules.awayGoals = false;
+          save();
+          render();
+        });
+      });
+
+      const fullscreenBtn = document.getElementById('fullscreen-btn');
+      if (fullscreenSupported) {
+        fullscreenBtn.addEventListener('click', () => toggleFullscreen());
+        document.addEventListener('fullscreenchange', syncFullscreenUI);
+        document.addEventListener('webkitfullscreenchange', syncFullscreenUI);
+        document.addEventListener('msfullscreenchange', syncFullscreenUI);
+      } else {
+        fullscreenBtn.classList.add('unsupported');
+        fullscreenBtn.title = 'Fullscreen not supported';
+        fullscreenBtn.disabled = true;
+      }
+      document.addEventListener('keydown', (e) => {
+        if ((e.key === 'f' || e.key === 'F') && fullscreenSupported) {
+          if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) return;
+          e.preventDefault();
+          toggleFullscreen();
+        }
+      });
+
+      document.getElementById('broadcast-btn').addEventListener('click', () => {
+        state.broadcastMode = !state.broadcastMode;
+        document.getElementById('main').classList.toggle('broadcast', state.broadcastMode);
+        document.getElementById('bracket-area').classList.toggle('broadcast', state.broadcastMode);
+        save();
+        render();
+      });
+
+      document.getElementById('export-btn').addEventListener('click', () => {
+        const json = JSON.stringify(state, null, 2);
+        document.getElementById('export-textarea').value = json;
+        document.getElementById('export-modal').style.display = 'flex';
+      });
+      document.getElementById('export-copy').addEventListener('click', () => {
+        navigator.clipboard.writeText(document.getElementById('export-textarea').value);
+        toast('Copied to clipboard.');
+      });
+      document.getElementById('export-download').addEventListener('click', () => {
+        const a = document.createElement('a');
+        a.href = 'data:application/json,' + encodeURIComponent(JSON.stringify(state, null, 2));
+        a.download = 'soccer-bracket.json';
+        a.click();
+        toast('Downloaded.');
+      });
+      document.getElementById('export-close').addEventListener('click', () => {
+        document.getElementById('export-modal').style.display = 'none';
+      });
+
+      document.getElementById('import-btn').addEventListener('click', () => {
+        document.getElementById('import-textarea').value = '';
+        document.getElementById('import-file').value = '';
+        document.getElementById('import-modal').style.display = 'flex';
+      });
+      document.getElementById('import-confirm').addEventListener('click', () => {
+        const raw = document.getElementById('import-textarea').value.trim();
+        if (!raw) { toast('Paste or upload JSON first.'); return; }
+        try {
+          const parsed = JSON.parse(raw);
+          if (!parsed || typeof parsed !== 'object') throw new Error('Invalid');
+          state = {
+            teamsParticipating: parsed.teamsParticipating ?? 16,
+            teams: Array.isArray(parsed.teams) ? parsed.teams : [],
+            seeds: Array.isArray(parsed.seeds) ? [...parsed.seeds] : Array(32).fill(null),
+            bracketSeeds: Array.isArray(parsed.bracketSeeds) ? parsed.bracketSeeds : null,
+            rules: { ...state.rules, ...parsed.rules },
+            matches: typeof parsed.matches === 'object' ? parsed.matches : {},
+            broadcastMode: !!parsed.broadcastMode,
+            fullscreen: !!parsed.fullscreen,
+            setupCollapsed: !!parsed.setupCollapsed,
+            rulesCollapsed: !!parsed.rulesCollapsed
+          };
+          if (state.seeds.length !== 32) state.seeds = Array(32).fill(null);
+          save();
+          render();
+          document.getElementById('import-modal').style.display = 'none';
+          toast('Import successful.');
+        } catch (err) {
+          toast('Invalid JSON. Please check the format.');
+        }
+      });
+      document.getElementById('import-file').addEventListener('change', e => {
+        const f = e.target.files[0];
+        if (!f) return;
+        const r = new FileReader();
+        r.onload = () => {
+          document.getElementById('import-textarea').value = r.result;
+        };
+        r.readAsText(f);
+      });
+      document.getElementById('import-close').addEventListener('click', () => {
+        document.getElementById('import-modal').style.display = 'none';
+      });
+
+      document.getElementById('clear-btn').addEventListener('click', () => {
+        document.getElementById('clear-modal').style.display = 'flex';
+      });
+      document.getElementById('clear-cancel').addEventListener('click', () => {
+        document.getElementById('clear-modal').style.display = 'none';
+      });
+      document.getElementById('clear-confirm').addEventListener('click', () => {
+        state = {
+          teamsParticipating: 16,
+          teams: [],
+          seeds: Array(32).fill(null),
+          bracketSeeds: null,
+          rules: { twoLeg: false, awayGoals: false, extraTime: false, penalties: true, showDateTime: false },
+          matches: {},
+          broadcastMode: false,
+          fullscreen: false,
+          setupCollapsed: false,
+          rulesCollapsed: false
+        };
+        localStorage.removeItem(STORAGE_KEY);
+        document.getElementById('clear-modal').style.display = 'none';
+        if (isFullscreen()) document.exitFullscreen?.();
+        document.getElementById('main').classList.remove('fullscreen', 'broadcast');
+        document.getElementById('bracket-area').classList.remove('broadcast');
+        document.body.classList.remove('fullscreen-mode');
+        syncFullscreenUI();
+        render();
+        toast('All data cleared.');
+      });
+
+      document.querySelectorAll('.panel-header').forEach(h => {
+        h.addEventListener('click', () => {
+          const panel = h.closest('.panel');
+          const id = panel.id;
+          if (id === 'setup-panel') state.setupCollapsed = !state.setupCollapsed;
+          if (id === 'rules-panel') state.rulesCollapsed = !state.rulesCollapsed;
+          panel.classList.toggle('collapsed', id === 'setup-panel' ? state.setupCollapsed : state.rulesCollapsed);
+          save();
+        });
+      });
+      document.getElementById('setup-panel').classList.toggle('collapsed', state.setupCollapsed);
+      document.getElementById('rules-panel').classList.toggle('collapsed', state.rulesCollapsed);
+    }
+
+    init();
+  })();
+  </script>
