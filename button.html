@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Open Knockout Bracket</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      min-height: 100vh;
+      background: #fff;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      overflow-x: hidden;
+    }
+
+    /* Wrapper for embedding: horizontally center the button */
+    .bracket-btn-wrap {
+      width: 100%;
+      text-align: center;
+      padding: 5px;
+    }
+
+    .bracket-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 16px 32px;
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #0d1117;
+      background: linear-gradient(135deg, #58a6ff 0%, #79b8ff 50%, #58a6ff 100%);
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      text-decoration: none;
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.25s ease, box-shadow 0.25s ease;
+      box-shadow: 0 4px 14px rgba(88, 166, 255, 0.4);
+    }
+
+    .bracket-btn:hover {
+      transform: scale(1.08);
+      box-shadow: 0 6px 20px rgba(88, 166, 255, 0.5);
+    }
+
+    .bracket-btn:active {
+      transform: scale(1.02);
+    }
+
+    /* Glimmer sweep overlay */
+    .bracket-btn::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 60%;
+      height: 100%;
+      background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(255, 255, 255, 0.15) 30%,
+        rgba(255, 255, 255, 0.4) 50%,
+        rgba(255, 255, 255, 0.15) 70%,
+        transparent 100%
+      );
+      animation: glimmer 2.5s ease-in-out infinite;
+      pointer-events: none;
+    }
+
+    @keyframes glimmer {
+      0% { left: -100%; }
+      60% { left: -100%; }
+      100% { left: 150%; }
+    }
+
+    .bracket-btn:hover::before {
+      animation-duration: 1.2s;
+    }
+
+    .bracket-btn span {
+      position: relative;
+      z-index: 1;
+    }
+  </style>
+</head>
+<body>
+  <div class="bracket-btn-wrap">
+    <a href="https://knockout.gamestatlab.com/" class="bracket-btn" title="Open Soccer Knockout Bracket">
+      <span>⚽ Open Knockout Bracket</span>
+    </a>
+  </div>
+</body>
+</html>
