@@ -50,7 +50,7 @@
     .panel-header:hover { background: var(--surface2); }
     .panel-header .chevron { transition: transform 0.2s; opacity: 0.7; }
     .panel.collapsed .chevron { transform: rotate(-90deg); }
-    .panel-content { padding: 12px 16px; max-height: 400px; overflow-y: auto; }
+    .panel-content { padding: 12px 16px; max-height: 520px; overflow-y: auto; }
     .panel.collapsed .panel-content { display: none; }
 
     /* Form elements */
@@ -102,14 +102,14 @@
     .toggle::after { content: ''; position: absolute; width: 18px; height: 18px; background: white; border-radius: 50%; top: 3px; left: 3px; transition: transform 0.2s; }
     .toggle.on::after { transform: translateX(20px); }
 
-    /* Bracket area */
-    .bracket-area { flex: 1; overflow-x: auto; padding: 20px; }
+    /* Bracket area — pyramid: first round sets height, later rounds centered vertically */
+    .bracket-area { flex: 1; overflow: auto; padding: 20px; }
     .bracket-area.broadcast { padding: 30px; }
-    .bracket-rounds { display: flex; gap: 24px; min-width: max-content; }
-    .round-column { flex-shrink: 0; }
-    .round-title { font-size: 0.9rem; font-weight: 600; color: var(--text-muted); margin-bottom: 12px; text-align: center; }
+    .bracket-rounds { display: flex; align-items: stretch; gap: 24px; min-width: max-content; }
+    .round-column { flex-shrink: 0; display: flex; flex-direction: column; min-height: 0; }
+    .round-title { flex-shrink: 0; font-size: 0.9rem; font-weight: 600; color: var(--text-muted); margin-bottom: 12px; text-align: center; }
     .bracket-area.broadcast .round-title { font-size: 1.1rem; margin-bottom: 16px; }
-    .round-matches { display: flex; flex-direction: column; gap: 16px; }
+    .round-matches { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: center; gap: 16px; }
     .bracket-area.broadcast .round-matches { gap: 24px; }
 
     /* Match card */
@@ -180,6 +180,14 @@
 
     .lock-msg { font-size: 0.8rem; color: var(--warning); margin-top: 8px; }
 
+    /* Setup steps and helpers */
+    .setup-step { margin-bottom: 20px; }
+    .setup-step-title { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); margin-bottom: 6px; }
+    .form-group .hint { font-size: 0.8rem; color: var(--text-muted); margin-top: 4px; }
+    .btn-with-hint { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+    .btn-with-hint .btn { margin: 0; }
+    .btn-with-hint .hint { font-size: 0.75rem; color: var(--text-muted); }
+
     /* Mode: Minimized (embed) vs Fullscreen (edit) */
     .soccer-bracket-app { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: var(--surface); }
     .soccer-bracket-app.mode-minimized { max-height: 420px; display: flex; flex-direction: column; }
@@ -244,25 +252,54 @@
           <span class="chevron">▼</span>
         </div>
         <div class="panel-content">
-          <div class="form-group">
-            <label>Teams participating (2–32)</label>
-            <input type="number" id="teams-count" min="2" max="32" value="16">
+          <p class="form-group hint" style="margin-bottom: 14px;">Create your bracket in 4 steps: set team count → name teams → assign seeds → generate.</p>
+
+          <div class="setup-step">
+            <div class="setup-step-title">Step 1 — How many teams?</div>
+            <div class="form-group">
+              <label for="teams-count">Number of teams (2–32)</label>
+              <input type="number" id="teams-count" min="2" max="32" value="16" aria-describedby="teams-count-hint">
+              <p id="teams-count-hint" class="hint">Tournament size. The list below will match this count; name your teams there.</p>
+            </div>
           </div>
-          <div class="btn-row">
-            <button class="btn" id="add-team">Add Team</button>
-            <button class="btn" id="quick-fill">Quick Fill</button>
-            <button class="btn" id="auto-fill-seeds">Auto-fill Seeds</button>
+
+          <div class="setup-step">
+            <div class="setup-step-title">Step 2 — Name your teams</div>
+            <div class="btn-row">
+              <div class="btn-with-hint">
+                <button type="button" class="btn" id="quick-fill" style="display:none" title="Creates placeholder names (Team 1, Team 2, …) for the count above">Quick Fill</button>
+                <span class="hint">Create “Team 1”, “Team 2”, … (you can rename after)</span>
+              </div>
+              <div class="btn-with-hint">
+                <button type="button" class="btn" id="add-team" style="display:none">Add one team</button>
+                <span class="hint"></span>
+              </div>
+            </div>
+            <div class="form-group" style="margin-top: 12px;">
+              <label>Team list — drag rows into seed slots below to reorder</label>
+              <div class="team-list" id="team-list" data-drop="teams"></div>
+            </div>
           </div>
-          <div class="form-group" style="margin-top: 16px;">
-            <label>Team list (drag to seed)</label>
-            <div class="team-list" id="team-list" data-drop="teams"></div>
-          </div>
-          <div class="form-group" style="margin-top: 16px;">
-            <label>Seeding Slots 1–32</label>
+
+          <div class="setup-step">
+            <div class="setup-step-title">Step 3 — Assign seed order</div>
+            <div class="btn-row" style="margin-bottom: 8px;">
+              <div class="btn-with-hint">
+                <button type="button" class="btn" id="auto-fill-seeds" title="Copy team list into seeds: 1st team → Seed 1, 2nd → Seed 2, …">Auto-fill Seeds</button>
+                <span class="hint">Put list above into seeds (1st team = Seed 1, 2nd = Seed 2, …)</span>
+              </div>
+            </div>
             <p id="lock-msg" class="lock-msg" style="display:none;">Clear results to reseed.</p>
-            <div class="seeding-slots" id="seeding-slots"></div>
+            <div class="form-group">
+              <label>Seed slots (same count as teams)</label>
+              <div class="seeding-slots" id="seeding-slots"></div>
+            </div>
           </div>
-          <button class="btn primary" id="generate-bracket" style="margin-top: 12px; width: 100%;">Generate / Refresh Bracket</button>
+
+          <div class="setup-step">
+            <div class="setup-step-title">Step 4 — Build bracket</div>
+            <button type="button" class="btn primary" id="generate-bracket" style="width: 100%;">Generate bracket</button>
+          </div>
         </div>
       </div>
       <div class="panel" id="rules-panel">
@@ -381,7 +418,7 @@
     let state = {
       teamsParticipating: 16,
       teams: [],
-      seeds: Array(32).fill(null),
+      seeds: Array(16).fill(null),
       bracketSeeds: null,
       rules: { twoLeg: false, awayGoals: false, extraTime: false, penalties: true, showDateTime: false },
       matches: {},
@@ -401,17 +438,20 @@
       return state.matches[key];
     }
 
-    // --- Bracket structure: R32 has 16 matches, R16=8, QF=4, SF=2, Final=1 ---
+    // --- Bracket structure: only show rounds needed for current team count ---
+    const ROUND_COUNTS = [16, 8, 4, 2, 1, 1]; // R32, R16, QF, SF, Final, Champion
     function getBracketStructure() {
-      const r32Count = 16, r16Count = 8, qfCount = 4, sfCount = 2;
-      return [
-        { name: 'R32', count: r32Count },
-        { name: 'R16', count: r16Count },
-        { name: 'QF', count: qfCount },
-        { name: 'SF', count: sfCount },
-        { name: 'Final', count: 1 },
-        { name: 'Champion', count: 1 }
-      ];
+      const n = Math.min(32, Math.max(2, state.teamsParticipating || 16));
+      const bracketSize = Math.pow(2, Math.ceil(Math.log2(n))); // 2,4,8,16,32
+      const firstRoundMatchCount = bracketSize / 2;
+      const firstRoundIdx = ROUND_COUNTS.indexOf(firstRoundMatchCount);
+      const startIdx = firstRoundIdx >= 0 ? firstRoundIdx : 1;
+      const names = ['R32', 'R16', 'QF', 'SF', 'Final', 'Champion'];
+      const result = [];
+      for (let i = startIdx; i <= 5; i++) {
+        result.push({ name: names[i], count: ROUND_COUNTS[i], roundIdx: i });
+      }
+      return result;
     }
 
     function getTeamsForR32Match(matchIdx) {
@@ -546,8 +586,22 @@
         if (s) {
           const parsed = JSON.parse(s);
           state = { ...state, ...parsed };
-          if (!Array.isArray(state.seeds)) state.seeds = Array(32).fill(null);
+          if (!Array.isArray(state.seeds)) state.seeds = [];
           if (!state.matches) state.matches = {};
+        }
+        // Clamp and normalize: teamsParticipating 2–32, then sync teams/seeds to that count
+        let n = parseInt(state.teamsParticipating, 10);
+        if (isNaN(n) || n < 2 || n > 32) n = 16;
+        state.teamsParticipating = n;
+        if (!Array.isArray(state.teams)) state.teams = [];
+        if (state.teams.length > n) state.teams = state.teams.slice(0, n);
+        else while (state.teams.length < n) state.teams.push('Team ' + (state.teams.length + 1));
+        if (!Array.isArray(state.seeds)) state.seeds = Array(n).fill(null);
+        else if (state.seeds.length > n) state.seeds = state.seeds.slice(0, n);
+        else while (state.seeds.length < n) state.seeds.push(null);
+        // Fill any remaining empty slots with default names so user sees "Team 1", "Team 2", etc.
+        for (let i = 0; i < state.teams.length; i++) {
+          if (state.teams[i] === '' || state.teams[i] == null) state.teams[i] = 'Team ' + (i + 1);
         }
       } catch (e) {}
     }
@@ -585,7 +639,7 @@
       const roundsEl = document.createElement('div');
       roundsEl.className = 'bracket-rounds';
 
-      struct.forEach((round, roundIdx) => {
+      struct.forEach((round) => {
         const col = document.createElement('div');
         col.className = 'round-column';
         col.innerHTML = `<div class="round-title">${round.name}</div>`;
@@ -600,9 +654,9 @@
           matchesContainer.appendChild(card);
         } else {
           for (let m = 0; m < round.count; m++) {
-            const [teamA, teamB] = getTeamsForMatch(roundIdx, m);
-            const winner = getWinnerForMatch(roundIdx, m);
-            const key = getMatchKey(roundIdx, m);
+            const [teamA, teamB] = getTeamsForMatch(round.roundIdx, m);
+            const winner = getWinnerForMatch(round.roundIdx, m);
+            const key = getMatchKey(round.roundIdx, m);
             const scoreStr = key ? getDisplayScoreForKey(key) : '';
             const isBye = teamA === 'BYE' || teamB === 'BYE';
             const isPlaceholder = teamA === '—' || teamB === '—';
@@ -661,7 +715,8 @@
       const container = document.getElementById('seeding-slots');
       container.innerHTML = '';
       const locked = hasAnyScores();
-      for (let i = 0; i < 32; i++) {
+      const n = state.teamsParticipating;
+      for (let i = 0; i < n; i++) {
         const div = document.createElement('div');
         div.className = 'seed-slot' + (state.seeds[i] ? ' filled' : '');
         div.dataset.slot = i;
@@ -692,10 +747,10 @@
       container.innerHTML = '';
 
       const struct = getBracketStructure();
-      struct.forEach((round, roundIdx) => {
+      struct.forEach((round) => {
         const col = document.createElement('div');
         col.className = 'round-column';
-        col.innerHTML = `<div class="round-title">${round.name}</div><div class="round-matches" data-round="${roundIdx}"></div>`;
+        col.innerHTML = `<div class="round-title">${round.name}</div><div class="round-matches" data-round="${round.roundIdx}"></div>`;
         const matchesEl = col.querySelector('.round-matches');
 
         if (round.name === 'Champion') {
@@ -706,7 +761,7 @@
           matchesEl.appendChild(card);
         } else {
           for (let m = 0; m < round.count; m++) {
-            matchesEl.appendChild(createMatchCard(roundIdx, m));
+            matchesEl.appendChild(createMatchCard(round.roundIdx, m));
           }
         }
         container.appendChild(col);
@@ -869,9 +924,28 @@
       return d.innerHTML;
     }
 
+    function applyTeamsCount(v) {
+      v = Math.max(2, Math.min(32, v));
+      state.teamsParticipating = v;
+      if (state.teams.length > v) state.teams = state.teams.slice(0, v);
+      else {
+        while (state.teams.length < v) state.teams.push('Team ' + (state.teams.length + 1));
+      }
+      if (state.seeds.length > v) state.seeds = state.seeds.slice(0, v);
+      else while (state.seeds.length < v) state.seeds.push(null);
+      save();
+      render();
+      const input = document.getElementById('teams-count');
+      if (input) input.value = v;
+    }
+
     // --- Event handlers ---
     function init() {
       load();
+      // Sync number input to state (16 on first load, or restored value from localStorage)
+      const teamsCountInput = document.getElementById('teams-count');
+      if (teamsCountInput) teamsCountInput.value = state.teamsParticipating;
+
       const app = document.getElementById('soccer-bracket-app');
       app.classList.remove('mode-minimized', 'mode-fullscreen');
       app.classList.add(isFullscreen() ? 'mode-fullscreen' : 'mode-minimized');
@@ -890,39 +964,25 @@
         if (!isFullscreen()) toast('Editing is available in fullscreen mode.');
       });
 
+      // Validate only on blur/change (when leaving the field or pressing Enter), not on every keystroke.
+      // Otherwise typing "11" would run apply(1) after "1" and overwrite the input before you type the second "1".
       document.getElementById('teams-count').addEventListener('change', e => {
-        let v = parseInt(e.target.value) || 16;
-        v = Math.max(2, Math.min(32, v));
-        state.teamsParticipating = v;
-        e.target.value = v;
-        save();
-        render();
-      });
-
-      document.getElementById('add-team').addEventListener('click', () => {
-        state.teams.push('');
-        save();
-        render();
-      });
-
-      document.getElementById('quick-fill').addEventListener('click', () => {
-        const n = state.teamsParticipating;
-        if (state.teams.length === 0) {
-          state.teams = Array(n).fill('').map((_, i) => `Team ${i + 1}`);
-        }
-        save();
-        render();
+        let v = parseInt(e.target.value, 10) || 16;
+        applyTeamsCount(v);
       });
 
       document.getElementById('auto-fill-seeds').addEventListener('click', () => {
-        state.seeds = Array(32).fill(null);
-        state.teams.slice(0, 32).forEach((t, i) => state.seeds[i] = t || null);
+        const n = state.teamsParticipating;
+        state.seeds = Array(n).fill(null);
+        state.teams.slice(0, n).forEach((t, i) => state.seeds[i] = t || null);
         save();
         render();
       });
 
       document.getElementById('generate-bracket').addEventListener('click', () => {
-        state.bracketSeeds = [...state.seeds];
+        // bracketSeeds is always 32 slots for internal bracket math; copy first n from seeds
+        state.bracketSeeds = Array(32).fill(null);
+        state.seeds.forEach((t, i) => { state.bracketSeeds[i] = t || null; });
         save();
         render();
         toast('Bracket generated.');
@@ -1091,7 +1151,7 @@
           state = {
             teamsParticipating: parsed.teamsParticipating ?? 16,
             teams: Array.isArray(parsed.teams) ? parsed.teams : [],
-            seeds: Array.isArray(parsed.seeds) ? [...parsed.seeds] : Array(32).fill(null),
+            seeds: Array.isArray(parsed.seeds) ? [...parsed.seeds] : Array(parsed.teamsParticipating ?? 16).fill(null),
             bracketSeeds: Array.isArray(parsed.bracketSeeds) ? parsed.bracketSeeds : null,
             rules: { ...state.rules, ...parsed.rules },
             matches: typeof parsed.matches === 'object' ? parsed.matches : {},
@@ -1100,7 +1160,12 @@
             setupCollapsed: !!parsed.setupCollapsed,
             rulesCollapsed: !!parsed.rulesCollapsed
           };
-          if (state.seeds.length !== 32) state.seeds = Array(32).fill(null);
+          const nn = state.teamsParticipating || 16;
+          if (!Array.isArray(state.seeds) || state.seeds.length !== nn) {
+            const prev = state.seeds;
+            state.seeds = Array(nn).fill(null);
+            if (Array.isArray(prev)) prev.slice(0, nn).forEach((t, i) => { state.seeds[i] = t; });
+          }
           save();
           render();
           document.getElementById('import-modal').style.display = 'none';
@@ -1132,7 +1197,7 @@
         state = {
           teamsParticipating: 16,
           teams: [],
-          seeds: Array(32).fill(null),
+          seeds: Array(16).fill(null),
           bracketSeeds: null,
           rules: { twoLeg: false, awayGoals: false, extraTime: false, penalties: true, showDateTime: false },
           matches: {},
