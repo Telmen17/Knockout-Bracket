@@ -538,7 +538,16 @@
     }
 
     function getTeamsForMatch(roundIdx, matchIdx) {
-      if (roundIdx === 0) return getTeamsForR32Match(matchIdx);
+      // First displayed round: teams come directly from bracket seeds (no "previous round").
+      // When we have 16 teams we show R16 first; when 32 we show R32 first. Use bracketSeeds for that round.
+      const struct = getBracketStructure();
+      const firstRoundIdx = struct[0].roundIdx;
+      if (roundIdx === firstRoundIdx) {
+        if (!state.bracketSeeds) return ['—', '—'];
+        const s1 = state.bracketSeeds[matchIdx * 2];
+        const s2 = state.bracketSeeds[matchIdx * 2 + 1];
+        return [s1 || 'BYE', s2 || 'BYE'];
+      }
       if (roundIdx === 5) return [getWinnerForMatch(4, 0), null];
 
       const prevRoundCount = [16, 8, 4, 2, 1][roundIdx - 1];
