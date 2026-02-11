@@ -79,6 +79,8 @@
     .team-item input { flex: 1; padding: 6px 8px; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-size: 0.9rem; }
     .team-item input:focus { outline: none; border-color: var(--accent); }
     .team-item .handle { color: var(--text-muted); font-size: 0.8rem; }
+    .team-item.seeded { background: rgba(63, 185, 80, 0.08); border-left: 3px solid var(--success); }
+    .team-item .seeded-badge { font-size: 0.7rem; color: var(--success); white-space: nowrap; }
 
     /* Seeding slots */
     .seeding-slots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 10px; }
@@ -126,6 +128,7 @@
       transition: background 0.15s;
     }
     .match-card .team-row.winner { background: rgba(63, 185, 80, 0.2); border-left: 3px solid var(--success); }
+    .match-card .team-row.loser { background: rgba(248, 81, 73, 0.12); border-left: 3px solid var(--danger); color: var(--text-muted); }
     .match-card .team-row .away-tag { font-size: 0.65rem; color: var(--text-muted); margin-left: 4px; }
     .match-card .team-row .team-name { flex: 1; font-weight: 500; }
     .match-card .team-row .bye-badge { font-size: 0.7rem; background: var(--surface2); padding: 2px 6px; border-radius: 4px; }
@@ -144,6 +147,19 @@
     .match-card .datetime-input { margin-top: 8px; }
     .match-card .datetime-input input { width: 100%; padding: 6px; font-size: 0.85rem; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; color: var(--text); }
     .match-card.placeholder-match { opacity: 0.85; }
+
+    /* Advance arrow: green dotted line from match card to next round */
+    .match-card-wrapper { display: flex; align-items: center; gap: 0; flex-shrink: 0; }
+    .advance-connector {
+      flex-shrink: 0; width: 28px; height: 0; margin-left: 2px;
+      border-bottom: 2px dashed var(--success);
+      position: relative; align-self: center;
+    }
+    .advance-connector::after {
+      content: ''; position: absolute; right: -6px; top: -5px;
+      border: 5px solid transparent; border-left-color: var(--success); border-right: none;
+    }
+    .bracket-area.broadcast .advance-connector { width: 36px; }
 
     /* Champion card */
     .champion-card {
@@ -291,7 +307,7 @@
             </div>
             <p id="lock-msg" class="lock-msg" style="display:none;">Clear results to reseed.</p>
             <div class="form-group">
-              <label>Seed slots (same count as teams)</label>
+              <label>Seed slots (next power of 2; empty = BYE)</label>
               <div class="seeding-slots" id="seeding-slots"></div>
             </div>
           </div>
@@ -427,6 +443,12 @@
       setupCollapsed: false,
       rulesCollapsed: false
     };
+
+    /** Number of seed slots = next power of 2 >= teamsParticipating (min 2, max 32). */
+    function getSeedSlotCount() {
+      const n = Math.max(2, Math.min(32, state.teamsParticipating || 16));
+      return Math.min(32, Math.pow(2, Math.ceil(Math.log2(n))));
+    }
 
     function getMatchKey(roundIdx, matchIdx) {
       const prefixes = ['r32', 'r16', 'qf', 'sf', 'final'];
@@ -605,9 +627,10 @@
         if (!Array.isArray(state.teams)) state.teams = [];
         if (state.teams.length > n) state.teams = state.teams.slice(0, n);
         else while (state.teams.length < n) state.teams.push('Team ' + (state.teams.length + 1));
-        if (!Array.isArray(state.seeds)) state.seeds = Array(n).fill(null);
-        else if (state.seeds.length > n) state.seeds = state.seeds.slice(0, n);
-        else while (state.seeds.length < n) state.seeds.push(null);
+        const seedCount = Math.min(32, Math.pow(2, Math.ceil(Math.log2(n))));
+        if (!Array.isArray(state.seeds)) state.seeds = Array(seedCount).fill(null);
+        else if (state.seeds.length > seedCount) state.seeds = state.seeds.slice(0, seedCount);
+        else while (state.seeds.length < seedCount) state.seeds.push(null);
         // Fill any remaining empty slots with default names so user sees "Team 1", "Team 2", etc.
         for (let i = 0; i < state.teams.length; i++) {
           if (state.teams[i] === '' || state.teams[i] == null) state.teams[i] = 'Team ' + (i + 1);
@@ -710,12 +733,14 @@
       const list = document.getElementById('team-list');
       list.innerHTML = '';
       state.teams.forEach((name, i) => {
+        const isSeeded = name !== '' && name != null && state.seeds.indexOf(name) >= 0;
         const div = document.createElement('div');
-        div.className = 'team-item';
+        div.className = 'team-item' + (isSeeded ? ' seeded' : '');
         div.draggable = true;
         div.dataset.index = i;
         div.dataset.source = 'team';
-        div.innerHTML = `<span class="handle">☰</span><input type="text" value="${escapeHtml(name)}" data-team-idx="${i}">`;
+        div.innerHTML = `<span class="handle">☰</span><input type="text" value="${escapeHtml(name)}" data-team-idx="${i}">` +
+          (isSeeded ? '<span class="seeded-badge" title="Already in a seed position">In bracket</span>' : '');
         list.appendChild(div);
       });
     }
@@ -724,7 +749,7 @@
       const container = document.getElementById('seeding-slots');
       container.innerHTML = '';
       const locked = hasAnyScores();
-      const n = state.teamsParticipating;
+      const n = getSeedSlotCount();
       for (let i = 0; i < n; i++) {
         const div = document.createElement('div');
         div.className = 'seed-slot' + (state.seeds[i] ? ' filled' : '');
@@ -793,8 +818,9 @@
 
       let html = `<div class="match-label">${ROUNDS[roundIdx]} Match ${matchIdx + 1}</div>`;
 
-      const teamARow = `<div class="team-row ${winner === teamA ? 'winner' : ''}"><span class="team-name">${teamA === 'BYE' ? '<span class="bye-badge">BYE</span>' : escapeHtml(teamA)}</span></div>`;
-      const teamBRow = `<div class="team-row ${winner === teamB ? 'winner' : ''}"><span class="team-name">${teamB === 'BYE' ? '<span class="bye-badge">BYE</span>' : escapeHtml(teamB)}</span></div>`;
+      const loserClass = winner && winner !== 'BYE' ? ' loser' : '';
+      const teamARow = `<div class="team-row ${winner === teamA ? 'winner' : (teamA !== 'BYE' ? loserClass : '')}"><span class="team-name">${teamA === 'BYE' ? '<span class="bye-badge">BYE</span>' : escapeHtml(teamA)}</span></div>`;
+      const teamBRow = `<div class="team-row ${winner === teamB ? 'winner' : (teamB !== 'BYE' ? loserClass : '')}"><span class="team-name">${teamB === 'BYE' ? '<span class="bye-badge">BYE</span>' : escapeHtml(teamB)}</span></div>`;
 
       if (isBye) {
         html += teamARow + teamBRow;
@@ -825,6 +851,17 @@
 
       card.innerHTML = html;
       attachMatchListeners(card, key, data, teamA, teamB, r, isBye);
+
+      if (winner && roundIdx < 5 && winner !== 'BYE') {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'match-card-wrapper';
+        wrapper.appendChild(card);
+        const conn = document.createElement('div');
+        conn.className = 'advance-connector';
+        conn.setAttribute('aria-hidden', 'true');
+        wrapper.appendChild(conn);
+        return wrapper;
+      }
       return card;
     }
 
@@ -940,8 +977,9 @@
       else {
         while (state.teams.length < v) state.teams.push('Team ' + (state.teams.length + 1));
       }
-      if (state.seeds.length > v) state.seeds = state.seeds.slice(0, v);
-      else while (state.seeds.length < v) state.seeds.push(null);
+      const seedCount = getSeedSlotCount();
+      if (state.seeds.length > seedCount) state.seeds = state.seeds.slice(0, seedCount);
+      else while (state.seeds.length < seedCount) state.seeds.push(null);
       save();
       render();
       const input = document.getElementById('teams-count');
@@ -981,9 +1019,9 @@
       });
 
       document.getElementById('auto-fill-seeds').addEventListener('click', () => {
-        const n = state.teamsParticipating;
-        state.seeds = Array(n).fill(null);
-        state.teams.slice(0, n).forEach((t, i) => state.seeds[i] = t || null);
+        const slotCount = getSeedSlotCount();
+        state.seeds = Array(slotCount).fill(null);
+        state.teams.slice(0, state.teamsParticipating).forEach((t, i) => state.seeds[i] = t || null);
         save();
         render();
       });
@@ -1045,12 +1083,11 @@
           if (d.type === 'team') {
             const team = state.teams[d.index];
             if (team) {
-              const existing = state.seeds[targetSlot];
-              state.seeds[targetSlot] = team;
-              if (existing) {
-                const idx = state.teams.indexOf(existing);
-                if (idx < 0) state.teams.push(existing);
+              // Remove this team from any other seed slot so it only appears once (move, not copy)
+              for (let j = 0; j < state.seeds.length; j++) {
+                if (state.seeds[j] === team) state.seeds[j] = null;
               }
+              state.seeds[targetSlot] = team;
             }
           } else if (d.type === 'slot') {
             const other = state.seeds[d.index];
@@ -1169,11 +1206,11 @@
             setupCollapsed: !!parsed.setupCollapsed,
             rulesCollapsed: !!parsed.rulesCollapsed
           };
-          const nn = state.teamsParticipating || 16;
-          if (!Array.isArray(state.seeds) || state.seeds.length !== nn) {
+          const seedCount = getSeedSlotCount();
+          if (!Array.isArray(state.seeds) || state.seeds.length !== seedCount) {
             const prev = state.seeds;
-            state.seeds = Array(nn).fill(null);
-            if (Array.isArray(prev)) prev.slice(0, nn).forEach((t, i) => { state.seeds[i] = t; });
+            state.seeds = Array(seedCount).fill(null);
+            if (Array.isArray(prev)) prev.slice(0, seedCount).forEach((t, i) => { state.seeds[i] = t; });
           }
           save();
           render();
